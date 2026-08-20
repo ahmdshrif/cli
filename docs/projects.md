@@ -105,7 +105,7 @@ A boolean value to determine if you want to automatically install CocoaPods when
 
 If set to `true`, you can skip running `pod install` manually whenever it's needed.
 
-> Note: Starting from React Native 0.73, CLI's `init` command scaffolds the project with `react-native.config.js` file with this value set to `true` by default. Older projects can opt-in after migrating to 0.73. Please note that if your setup does not follow the standard React Native template, e.g. you are not using Gems to install CocoaPods, this might not work properly for you. Starting from React Native 0.79, users shouldn't install CocoaPods manually, but can still opt-out of automatic installation by setting this value to `false`.
+> Note: This is the default for every project, so no `react-native.config.js` file is required to opt in. Please note that if your setup does not follow the standard React Native template, e.g. you are not using Gems to install CocoaPods, this might not work properly for you. Starting from React Native 0.79, users shouldn't install CocoaPods manually, but can still opt-out of automatic installation by setting this value to `false`.
 
 ### project.ios.assets
 
