@@ -1,4 +1,5 @@
 /// <reference types="jest" />
+import {CLIError} from '@react-native-community/cli-tools';
 import {Config} from '@react-native-community/cli-types';
 import createRun from '../createRun';
 import listDevices from '../../../tools/listDevices';
@@ -168,5 +169,154 @@ describe('createRun no-flag default targeting (issue #2765)', () => {
       fallbackSimulator,
     );
     expect(runOnDevice).not.toHaveBeenCalled();
+  });
+});
+
+describe('createRun does not resolve a fallback simulator for device runs (issue #2826)', () => {
+  let chdirSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    chdirSpy = jest.spyOn(process, 'chdir').mockImplementation(() => {});
+    (getXcodeProjectAndDir as jest.Mock).mockReturnValue({
+      xcodeProject: {name: 'Demo', isWorkspace: true},
+      sourceDir: packageRoot,
+    });
+    (getConfiguration as jest.Mock).mockResolvedValue({
+      mode: 'Debug',
+      scheme: 'Demo',
+    });
+    (runOnSimulator as jest.Mock).mockResolvedValue(undefined);
+    (runOnDevice as jest.Mock).mockResolvedValue(undefined);
+    (listDevices as jest.Mock).mockResolvedValue([
+      physicalDevice,
+      bootedSimulator,
+    ]);
+    // A physical device udid never matches a simulator, and the hardcoded
+    // fallback names are not installed, so the real implementation throws.
+    (getFallbackSimulator as jest.Mock).mockImplementation(
+      (args: {simulator?: string; udid?: string}) => {
+        throw new CLIError(
+          `No simulator available with ${
+            args.simulator ? `name "${args.simulator}"` : `udid "${args.udid}"`
+          }`,
+        );
+      },
+    );
+  });
+
+  afterEach(() => {
+    chdirSpy.mockRestore();
+  });
+
+  test('--udid <physical device> -> runs on the device without resolving a fallback simulator', async () => {
+    await createRun({platformName: 'ios'})(
+      [],
+      buildCtx(),
+      buildArgs({udid: physicalDevice.udid}),
+    );
+
+    expect(getFallbackSimulator).not.toHaveBeenCalled();
+    expect(runOnDevice).toHaveBeenCalledTimes(1);
+    expect(runOnDevice).toHaveBeenCalledWith(
+      physicalDevice,
+      'ios',
+      'Debug',
+      'Demo',
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(runOnSimulator).not.toHaveBeenCalled();
+  });
+
+  test('--device <name> -> runs on the device without resolving a fallback simulator', async () => {
+    await createRun({platformName: 'ios'})(
+      [],
+      buildCtx(),
+      buildArgs({device: physicalDevice.name}),
+    );
+
+    expect(getFallbackSimulator).not.toHaveBeenCalled();
+    expect(runOnDevice).toHaveBeenCalledTimes(1);
+    expect(runOnSimulator).not.toHaveBeenCalled();
+  });
+
+  test('--udid <booted simulator> -> runs on that simulator without resolving a fallback simulator', async () => {
+    await createRun({platformName: 'ios'})(
+      [],
+      buildCtx(),
+      buildArgs({udid: bootedSimulator.udid}),
+    );
+
+    expect(getFallbackSimulator).not.toHaveBeenCalled();
+    expect(runOnSimulator).toHaveBeenCalledTimes(1);
+    expect(runOnSimulator).toHaveBeenCalledWith(
+      expect.anything(),
+      'ios',
+      'Debug',
+      'Demo',
+      expect.anything(),
+      bootedSimulator,
+    );
+    expect(runOnDevice).not.toHaveBeenCalled();
+  });
+
+  test('a booted simulator and no flags -> runs on it without resolving a fallback simulator', async () => {
+    await createRun({platformName: 'ios'})([], buildCtx(), buildArgs());
+
+    expect(getFallbackSimulator).not.toHaveBeenCalled();
+    expect(runOnSimulator).toHaveBeenCalledTimes(1);
+    expect(runOnSimulator).toHaveBeenCalledWith(
+      expect.anything(),
+      'ios',
+      'Debug',
+      'Demo',
+      expect.anything(),
+      bootedSimulator,
+    );
+  });
+
+  test('--simulator <matching name> -> runs on it without resolving a fallback simulator', async () => {
+    await createRun({platformName: 'ios'})(
+      [],
+      buildCtx(),
+      buildArgs({simulator: bootedSimulator.name}),
+    );
+
+    expect(getFallbackSimulator).not.toHaveBeenCalled();
+    expect(runOnSimulator).toHaveBeenCalledTimes(1);
+    expect(runOnSimulator).toHaveBeenCalledWith(
+      expect.anything(),
+      'ios',
+      'Debug',
+      'Demo',
+      expect.anything(),
+      bootedSimulator,
+    );
+  });
+
+  test('--simulator <unknown name> -> still surfaces the fallback simulator error', async () => {
+    await expect(
+      createRun({platformName: 'ios'})(
+        [],
+        buildCtx(),
+        buildArgs({simulator: 'iPhone 99'}),
+      ),
+    ).rejects.toThrow('No simulator available with name "iPhone 99"');
+
+    expect(getFallbackSimulator).toHaveBeenCalledTimes(1);
+    expect(runOnSimulator).not.toHaveBeenCalled();
+    expect(runOnDevice).not.toHaveBeenCalled();
+  });
+
+  test('no booted simulator and no flags -> still surfaces the fallback simulator error', async () => {
+    (listDevices as jest.Mock).mockResolvedValue([physicalDevice]);
+
+    await expect(
+      createRun({platformName: 'ios'})([], buildCtx(), buildArgs()),
+    ).rejects.toThrow('No simulator available with udid "undefined"');
+
+    expect(getFallbackSimulator).toHaveBeenCalledTimes(1);
+    expect(runOnSimulator).not.toHaveBeenCalled();
   });
 });

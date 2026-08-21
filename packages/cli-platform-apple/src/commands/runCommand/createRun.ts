@@ -209,7 +209,12 @@ const createRun =
       }
     }
 
-    const fallbackSimulator =
+    /**
+     * Resolved lazily: `getFallbackSimulator` shells out to `xcrun simctl` and
+     * throws when it cannot find a simulator, which must not happen on the
+     * `--device`/`--udid` paths — those never use a fallback simulator.
+     */
+    const resolveFallbackSimulator = () =>
       platformName === 'ios' || platformName === 'tvos'
         ? getFallbackSimulator(args)
         : devices[0];
@@ -268,7 +273,7 @@ const createRun =
       );
       const connectedDevices = devices.filter(({type}) => type === 'device');
 
-      const targetSimulator = bootedSimulators[0] ?? fallbackSimulator;
+      const targetSimulator = bootedSimulators[0] ?? resolveFallbackSimulator();
 
       if (bootedSimulators.length === 0) {
         logger.info(
@@ -414,7 +419,7 @@ const createRun =
         mode,
         scheme,
         args,
-        matchedSimulator ?? fallbackSimulator,
+        matchedSimulator ?? resolveFallbackSimulator(),
       );
     } else {
       runOnSimulator(
@@ -423,7 +428,7 @@ const createRun =
         mode,
         scheme,
         args,
-        fallbackSimulator,
+        resolveFallbackSimulator(),
       );
     }
   };
