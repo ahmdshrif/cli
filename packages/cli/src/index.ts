@@ -180,6 +180,29 @@ function exitIfCommunityCliPluginMissing(argv: string[]) {
   process.exit(1);
 }
 
+/**
+ * Without a `package.json` the CLI only registers the detached commands, so
+ * commander would answer a project command as unknown and suggest `init`.
+ */
+function exitIfProjectCommandOutsideProject(argv: string[]) {
+  const commandName = argv.slice(2).find((arg) => !arg.startsWith('-'));
+
+  if (
+    commandName == null ||
+    !projectCommands.some((command) => command.name === commandName) ||
+    program.commands.some((cmd) => cmd.name() === commandName)
+  ) {
+    return;
+  }
+
+  logger.error(
+    `The "${commandName}" command has to run inside a React Native project, and no package.json was found in ${pico.bold(
+      process.cwd(),
+    )} or its parent directories. Run it again from your project's folder.`,
+  );
+  process.exit(1);
+}
+
 async function setupAndRun(platformName?: string) {
   // Commander is not available yet
 
@@ -211,6 +234,7 @@ async function setupAndRun(platformName?: string) {
   }
 
   let config: Config | undefined;
+  let isOutsideProject = false;
   try {
     let selectedPlatform: string | undefined;
 
@@ -268,6 +292,7 @@ async function setupAndRun(platformName?: string) {
      * of commands will be available. That's why we don't throw on such kind of error.
      */
     if ((error as Error).message.includes("We couldn't find a package.json")) {
+      isOutsideProject = true;
       logger.debug((error as Error).message);
       logger.debug(
         'Failed to load configuration of your project. Only a subset of commands will be available.',
@@ -282,6 +307,10 @@ async function setupAndRun(platformName?: string) {
     for (const command of detachedCommands) {
       attachCommand(command, config);
     }
+  }
+
+  if (isOutsideProject) {
+    exitIfProjectCommandOutsideProject(process.argv);
   }
 
   const argv = [...process.argv];

@@ -33,3 +33,18 @@ test('explain missing @react-native/community-cli-plugin commands', () => {
     'The "start" command is provided by @react-native/community-cli-plugin, which is not installed in this project.',
   );
 });
+
+test('explain project commands run outside of a project', () => {
+  const {exitCode, stderr} = runCLI(DIR, ['info'], {expectedFailure: true});
+  expect(exitCode).toBe(1);
+  expect(stderr).toContain(
+    'The "info" command has to run inside a React Native project, and no package.json was found in',
+  );
+  expect(stderr).not.toContain("unknown command 'info'");
+});
+
+test('keep detached commands available outside of a project', () => {
+  const {exitCode, stdout} = runCLI(DIR, ['doctor', '--help']);
+  expect(exitCode).toBe(0);
+  expect(stdout).toContain('Diagnose and fix common');
+});
